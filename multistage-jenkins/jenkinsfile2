@@ -1,0 +1,60 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout Source Code') {
+            steps {
+                git 'https://github.com/ASHISH1306-SUDO/Jenkinspipeline'
+            }
+        }
+        
+        stage('Build Maven Project') {
+            agent {
+                docker {
+                    image 'maven:3.8.4-openjdk-11-slim'
+                    args '-v $HOME/.m2:/root/.m2'
+                }
+            }
+            steps {
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('Build Docker Image') {
+            agent {
+                docker {
+                    // Use a valid Docker image for building Docker images
+                    image 'docker:latest'
+                    args '-v /var/run/docker.sock:/var/run/docker.sock'
+                }
+            }
+            steps {
+                sh 'docker build -t jpipe:${env.BUILD_NUMBER} .'
+            }
+        }
+
+        stage('Push Docker Image') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'ashishmadhukar282@gmail.com', usernameVariable: 'USERNAME', passwordVariable: 'PASSWORD')]) {
+                    sh 'docker login -u $USERNAME -p $PASSWORD docker.io'
+                    sh 'docker tag jpipe:${env.BUILD_NUMBER} Ashish0510/jpipe:${env.BUILD_NUMBER}'
+                    sh 'docker push Ashish0510/jpipe:${env.BUILD_NUMBER}'
+                }
+            }
+        }
+    }
+
+    post {
+        failure {
+            mail to: 'ashishmadhukar282@gmail.com',
+                 subject: 'Pipeline failed',
+                 body: "The pipeline ${env.JOB_NAME} failed. Please check the Jenkins console output for more details."
+        }
+    }
+}
